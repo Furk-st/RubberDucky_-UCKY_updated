@@ -19,6 +19,11 @@ set(PICO_BOARD pico CACHE STRING "Board type")
 set(PROGRAM_NAME usb-ducky)
 
 # Pull in Pico SDK (must be before project)
+# If PICO_SDK_PATH isn't provided, fetch from git so the
+# example can build without a preinstalled SDK.
+if(NOT PICO_SDK_PATH)
+    set(PICO_SDK_FETCH_FROM_GIT ON)
+endif()
 include(pico_sdk_import.cmake)
 
 project(${PROGRAM_NAME})
@@ -44,27 +49,3 @@ target_link_libraries(${PROGRAM_NAME} PRIVATE
 target_include_directories(${PROGRAM_NAME} PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/include
 )
-
-# https://datasheets.raspberrypi.com/pico/raspberry-pi-pico-c-sdk.pdf
-target_compile_definitions(${PROGRAM_NAME} PUBLIC
-    PARAM_ASSERTIONS_ENABLE_ALL=1 
-    PICO_MALLOC_PANIC=1
-    PICO_USE_STACK_GUARDS=1
-
-    USE_PRINTF
-    USE_DBG_PRINTF
-)
-
-#target_compile_options(${PROGRAM_NAME} PRIVATE -Werror -Wall -Wextra -Wnull-dereference)
-target_compile_options(${PROGRAM_NAME} PUBLIC 
-    -Wall 
-    -Wextra 
-    -Wshadow 
-    -Wstack-usage=2048 
-    -fanalyzer 
-)
-
-target_link_options(${PROGRAM_NAME} PRIVATE -Wl,--print-memory-usage)
-
-pico_enable_stdio_usb(${PROGRAM_NAME} 1)
-pico_add_extra_outputs(${PROGRAM_NAME})
