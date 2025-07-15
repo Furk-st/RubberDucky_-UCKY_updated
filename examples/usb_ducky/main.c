@@ -13,6 +13,9 @@
 static char *payload = NULL;
 static size_t payload_len = 0;
 
+// Minimal ASCII to HID keycode translation used for the sample payload.
+// Only a small subset of characters are supported. Unsupported
+// characters return 0 which will be ignored by send_char().
 static uint8_t ascii_to_key(char c, uint8_t *modifier) {
     *modifier = 0;
     if (c >= 'a' && c <= 'z') return (c - 'a') + 0x04;
@@ -22,15 +25,27 @@ static uint8_t ascii_to_key(char c, uint8_t *modifier) {
     if (c == ' ') return 0x2c;
     if (c == '\n') return 0x28;
     return 0; // unsupported
+
+    switch (c) {
+        case ' ':  return 0x2c;               // SPACE
+        case '\n': return 0x28;               // ENTER
+        case '.':  return 0x37;               // PERIOD
+        case ',':  return 0x36;               // COMMA
+        case '!':  *modifier = KEY_MOD_LSHIFT; return 0x1e; // 1 with shift
+        case '?':  *modifier = KEY_MOD_LSHIFT; return 0x38; // '/' with shift
+        default:   return 0;                  // unsupported
+    }
 }
 
-    if (!tud_hid_ready()) return;
 static void send_char(char c) {
-    uint8_t mod; uint8_t key = ascii_to_key(c, &mod);
-    uint8_t mod;
-    uint8_t key = ascii_to_key(c, &mod);
-    if (!tud_hid_ready()) return;
+    uint8_t mod = 0;
+    uint8_t key;
     uint8_t report[6] = {0};
+
+    if (!tud_hid_ready()) return;
+
+    key = ascii_to_key(c, &mod);
+
     if (key) {
         report[0] = key;
         tud_hid_keyboard_report(0, mod, report);
@@ -46,11 +61,3 @@ static void execute_payload(void) {
         send_char(payload[i]);
     }
 }
-
-static void load_payload(void) {
-    sd_init_driver();
-    sd_card_t *sd = sd_get_by_num(0);
-    const char *drive = sd_get_drive_prefix(sd);
-    FRESULT fr = f_mount(&sd->state.fatfs, drive, 1);
-    if (fr != FR_OK) return;
-    FIL f; UINT br;
