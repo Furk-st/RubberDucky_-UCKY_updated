@@ -22,9 +22,6 @@ static uint8_t ascii_to_key(char c, uint8_t *modifier) {
     if (c >= 'A' && c <= 'Z') { *modifier = KEY_MOD_LSHIFT; return (c - 'A') + 0x04; }
     if (c >= '1' && c <= '9') return (c - '1') + 0x1e;
     if (c == '0') return 0x27;
-    if (c == ' ') return 0x2c;
-    if (c == '\n') return 0x28;
-    return 0; // unsupported
 
     switch (c) {
         case ' ':  return 0x2c;               // SPACE
@@ -60,4 +57,68 @@ static void execute_payload(void) {
     for (size_t i = 0; i < payload_len; ++i) {
         send_char(payload[i]);
     }
+}
+
+static void load_payload(void) {
+    sd_card_t *sd;
+    const char *drive;
+    FRESULT fr;
+    FIL f;
+    UINT br;
+
+    sd_init_driver();
+    sd = sd_get_by_num(0);
+    drive = sd_get_drive_prefix(sd);
+    fr = f_mount(&sd->state.fatfs, drive, 1);
+    if (fr != FR_OK) return;
+
+    if (FR_OK == f_open(&f, "payload.dd", FA_READ)) {
+        payload_len = f_size(&f);
+        payload = malloc(payload_len + 1);
+        if (payload) {
+            f_read(&f, payload, payload_len, &br);
+            payload[br] = '\0';
+        }
+        f_close(&f);
+    }
+    f_unmount(drive);
+}
+
+int main(void) {
+    board_init();
+    stdio_init_all();
+    load_payload();
+    tud_init(BOARD_TUD_RHPORT);
+    while (true) {
+        tud_task();
+        execute_payload();
+        payload_len = 0; // send once
+        sleep_ms(10);
+    }
+}
+
+// TinyUSB HID callbacks ------------------------------------------------------
+
+// This application only sends keyboard reports and does not handle getting or
+// setting reports from the host. Provide stub callbacks so the TinyUSB HID
+// class can link successfully.
+uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id,
+                               hid_report_type_t report_type,
+                               uint8_t* buffer, uint16_t reqlen) {
+    (void)instance;
+    (void)report_id;
+    (void)report_type;
+    (void)buffer;
+    (void)reqlen;
+    return 0;
+}
+
+void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
+                           hid_report_type_t report_type,
+                           uint8_t const* buffer, uint16_t bufsize) {
+    (void)instance;
+    (void)report_id;
+    (void)report_type;
+    (void)buffer;
+    (void)bufsize;
 }
